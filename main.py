@@ -1,5 +1,5 @@
 from fastapi import FastAPI, UploadFile, File, HTTPException
-from utils.orchestrator import orchestrate
+from utils.orchestrator import orchestrator
 from fastapi.responses import FileResponse
 import logging
 
@@ -21,7 +21,7 @@ async def classify_file(file: UploadFile = File(...)):
         if file.size > 10 * 1024 * 1024:  # 10MB limit
             raise HTTPException(status_code=400, detail="File too large (max 10MB)")
 #this is the real orchestrator function
-        result = await orchestrate(file)
+        result = await orchestrator(file)
         logger.info(f"Successfully processed file: {file.filename}")
         return result
     except HTTPException as e:

@@ -1,6 +1,6 @@
 from langchain_core.prompts import ChatPromptTemplate
 from langchain.chains import LLMChain
-from gemini_agent import gemini_client
+from .gemini_agent import gemini_client
 
 # Prompt with {context}
 intent_prompt = ChatPromptTemplate.from_template(
@@ -13,8 +13,14 @@ intent_prompt = ChatPromptTemplate.from_template(
 intent_chain = LLMChain(llm=gemini_client, prompt=intent_prompt)
 
 # Function takes text (already parsed)
-async def check_file_intent_from_text(text: str) -> str:
+async def checkIntent(data):
+    if isinstance(data, dict) and 'content' in data:
+        text = data['content']
+    else:
+        text = str(data)
+        
     if not text.strip():
         return "ERROR"
+        
     result = await intent_chain.ainvoke({"context": text})
     return result["text"].strip()
