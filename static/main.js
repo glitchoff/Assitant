@@ -1,26 +1,25 @@
 document.addEventListener('DOMContentLoaded', () => {
     const form = document.getElementById('uploadForm');
     const messageDiv = document.getElementById('message');
-    const fileInput = document.querySelector('input[type="file"]'); // input ka type file hoga tab!
+    const fileInput = document.querySelector('input[type="file"]');
 
     form.addEventListener('submit', async (e) => {
-        e.preventDefault(); // prevent default yeah default behaviour 
+        e.preventDefault(); // Prevent default form submission
         
         if (!fileInput.files.length) {
             showMessage('Please select a file first', 'error');
             return;
         }
 
-        const formData = new FormData();
-        formData.append('file', fileInput.files[0]); // the 0th is our file!
+        const formData = new FormData(form);
         
         try {
             const response = await fetch('/upload', {
-                method: 'POST', // a post request to the body!
-                body: formData // the form data is the file! or we appened it with the file, its empty!
+                method: 'POST',
+                body: formData
             });
             
-            const data = await response.json(); 
+            const data = await response.json();
             
             if (response.ok) {
                 showMessage('File uploaded successfully!', 'success');
