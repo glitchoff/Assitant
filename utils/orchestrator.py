@@ -3,6 +3,20 @@ from utils.pdfutils import pdfParser
 # from utils.textutils import txt_to_markdown
 # from utils.csvutils import csv_to_markdown
 
+
+
+def orchestrator(file: UploadFile):
+    #1. check file type and process it   
+    processfile(file)
+    
+
+    
+    
+
+
+
+
+
 async def handle_file(file: UploadFile):
     ext = file.filename.upper().split(".")[-1]
     return ext
