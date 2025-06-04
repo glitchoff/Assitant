@@ -3,62 +3,381 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Upload File to FastAPI</title>
-
-  <!-- ✅ Tailwind CSS + DaisyUI CDN -->
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script>
-    tailwind.config = {
-      plugins: [window.daisyui],
-    };
-  </script>
-  <script src="https://cdn.jsdelivr.net/npm/daisyui@3.8.2/dist/full.js"></script>
+  <title>AI File Classifier Pro</title>
+  
+  <link href="https://cdn.jsdelivr.net/npm/daisyui@5" rel="stylesheet" type="text/css" />
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  
+  <style>
+    body {
+      background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    }
+    
+    .glass {
+      background: rgba(30, 41, 59, 0.8);
+      backdrop-filter: blur(20px);
+      border: 1px solid rgba(148, 163, 184, 0.1);
+    }
+    
+    .hover-lift:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+    }
+    
+    .drag-over {
+      border-color: #3b82f6 !important;
+      background: rgba(59, 130, 246, 0.1);
+    }
+  </style>
 </head>
-<body class="bg-base-200 min-h-screen flex items-center justify-center">
 
-  <div class="card w-full max-w-md bg-base-100 shadow-xl p-6">
-    <h2 class="text-2xl font-bold mb-4 text-center">Upload a File</h2>
+<body class="min-h-screen text-white p-6">
+  <div class="max-w-6xl mx-auto">
+    <!-- Header -->
+    <div class="text-center mb-10">
+      <h1 class="text-4xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent mb-2">
+        AI File Classifier Pro
+      </h1>
+      <p class="text-slate-400">Enterprise-grade file analysis and classification</p>
+    </div>
 
-    <input type="file" id="fileInput" class="file-input file-input-bordered w-full mb-4" />
+    <div class="grid lg:grid-cols-2 gap-8">
+      <!-- Upload Section -->
+      <div class="glass rounded-2xl p-8 hover-lift transition-all duration-300">
+        <h2 class="text-2xl font-semibold mb-6 flex items-center gap-3">
+          📁 Upload Files
+          <span class="badge badge-primary text-xs">AI Powered</span>
+        </h2>
+        
+        <!-- Drag & Drop Zone -->
+        <div id="dropZone" class="border-2 border-dashed border-slate-600 rounded-xl p-8 text-center transition-all duration-300 cursor-pointer hover:border-blue-500">
+          <div class="text-5xl mb-4">🚀</div>
+          <h3 class="text-xl font-medium mb-2">Drop files here or click to browse</h3>
+          <p class="text-slate-400 mb-4">Supports all file formats</p>
+          <input type="file" id="fileInput" class="hidden" multiple />
+        </div>
+        
+        <!-- File List -->
+        <div id="filePreview" class="mt-6 hidden">
+          <h4 class="font-medium mb-3">Selected Files:</h4>
+          <div id="fileList" class="space-y-2 max-h-32 overflow-y-auto"></div>
+        </div>
+        
+        <!-- Controls -->
+        <div class="flex gap-3 mt-6">
+          <button id="uploadBtn" class="btn btn-primary flex-1" disabled>
+            Upload & Classify
+          </button>
+          <button id="clearBtn" class="btn btn-outline hidden" onclick="clearFiles()">
+            Clear
+          </button>
+        </div>
+        
+        <!-- Progress -->
+        <div id="progressContainer" class="mt-4 hidden">
+          <div class="flex justify-between text-sm mb-1">
+            <span>Processing...</span>
+            <span id="progressText">0%</span>
+          </div>
+          <progress id="progressBar" class="progress progress-primary w-full" value="0" max="100"></progress>
+        </div>
+      </div>
 
-    <button class="btn btn-primary w-full" onclick="uploadFile()">Upload & Process</button>
-
-    <div class="mt-4">
-      <h3 class="text-md font-medium">Response:</h3>
-      <pre id="responseBox" class="text-sm bg-base-200 p-3 rounded-lg max-h-64 overflow-auto whitespace-pre-wrap break-words"></pre>
+      <!-- Results Section -->
+      <div class="glass rounded-2xl p-8 hover-lift transition-all duration-300">
+        <h2 class="text-2xl font-semibold mb-6 flex items-center gap-3">
+          🎯 Results
+          <div id="resultsBadge" class="badge badge-success hidden">
+            <span id="resultsCount">0</span> files
+          </div>
+        </h2>
+        
+        <!-- Empty State -->
+        <div id="emptyState" class="text-center py-12">
+          <div class="text-5xl mb-4 opacity-50">📊</div>
+          <h3 class="text-lg font-medium text-slate-300 mb-2">No results yet</h3>
+          <p class="text-slate-400">Upload files to see classification results</p>
+        </div>
+        
+        <!-- Results -->
+        <div id="resultsContainer" class="space-y-4 hidden max-h-96 overflow-y-auto"></div>
+      </div>
     </div>
   </div>
 
   <script>
-    async function uploadFile() {
-      const fileInput = document.getElementById("fileInput");
-      const file = fileInput.files[0];
-      if (!file) {
-        alert("Please choose a file first.");
+    let selectedFiles = [];
+    
+    const dropZone = document.getElementById('dropZone');
+    const fileInput = document.getElementById('fileInput');
+    const filePreview = document.getElementById('filePreview');
+    const fileList = document.getElementById('fileList');
+    const uploadBtn = document.getElementById('uploadBtn');
+    const clearBtn = document.getElementById('clearBtn');
+    const progressContainer = document.getElementById('progressContainer');
+    const progressBar = document.getElementById('progressBar');
+    const progressText = document.getElementById('progressText');
+    const emptyState = document.getElementById('emptyState');
+    const resultsContainer = document.getElementById('resultsContainer');
+    const resultsBadge = document.getElementById('resultsBadge');
+    const resultsCount = document.getElementById('resultsCount');
+
+    // Event listeners
+    dropZone.addEventListener('click', () => fileInput.click());
+    dropZone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      dropZone.classList.add('drag-over');
+    });
+    dropZone.addEventListener('dragleave', () => {
+      dropZone.classList.remove('drag-over');
+    });
+    dropZone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dropZone.classList.remove('drag-over');
+      const files = Array.from(e.dataTransfer.files);
+      addFiles(files);
+    });
+    fileInput.addEventListener('change', (e) => {
+      const files = Array.from(e.target.files);
+      addFiles(files);
+    });
+    uploadBtn.addEventListener('click', uploadFiles);
+
+    function addFiles(files) {
+      selectedFiles = [...selectedFiles, ...files];
+      updateFilePreview();
+      updateUploadButton();
+    }
+
+    function updateFilePreview() {
+      if (selectedFiles.length === 0) {
+        filePreview.classList.add('hidden');
+        clearBtn.classList.add('hidden');
         return;
       }
 
-      const formData = new FormData();
-      formData.append("file", file);
+      filePreview.classList.remove('hidden');
+      clearBtn.classList.remove('hidden');
+      
+      fileList.innerHTML = selectedFiles.map((file, index) => `
+        <div class="flex items-center justify-between bg-slate-800/50 rounded-lg p-3">
+          <div class="flex items-center gap-3">
+            <div class="text-lg">${getFileIcon(file.type)}</div>
+            <div>
+              <div class="font-medium">${file.name}</div>
+              <div class="text-sm text-slate-400">${formatFileSize(file.size)}</div>
+            </div>
+          </div>
+          <button class="text-red-400 hover:text-red-300" onclick="removeFile(${index})">×</button>
+        </div>
+      `).join('');
+    }
+
+    function updateUploadButton() {
+      uploadBtn.disabled = selectedFiles.length === 0;
+      uploadBtn.textContent = selectedFiles.length === 0 ? 'Select Files First' : `Upload ${selectedFiles.length} File${selectedFiles.length > 1 ? 's' : ''}`;
+    }
+
+    function removeFile(index) {
+      selectedFiles.splice(index, 1);
+      updateFilePreview();
+      updateUploadButton();
+    }
+
+    function clearFiles() {
+      selectedFiles = [];
+      fileInput.value = '';
+      updateFilePreview();
+      updateUploadButton();
+    }
+
+    async function uploadFiles() {
+      if (selectedFiles.length === 0) return;
+
+      setUploading(true);
+      clearResults();
 
       try {
-        const res = await fetch("/classify", {  
-          method: "POST",
-          body: formData,
-        });
-
-        if (!res.ok) {
-          const error = await res.json();
-          throw new Error(error.detail || "Unknown error occurred");
+        const results = [];
+        
+        for (let i = 0; i < selectedFiles.length; i++) {
+          const file = selectedFiles[i];
+          updateProgress((i / selectedFiles.length) * 100);
+          
+          const formData = new FormData();
+          formData.append('file', file);
+          
+          try {
+            const response = await fetch('/classify', {
+              method: 'POST',
+              body: formData
+            });
+            
+            if (!response.ok) {
+              const error = await response.json();
+              throw new Error(error.detail || 'Classification failed');
+            }
+            
+            const result = await response.json();
+            results.push({ file: file.name, ...result, success: true });
+          } catch (error) {
+            results.push({ file: file.name, error: error.message, success: false });
+          }
         }
-
-        const data = await res.json();
-        document.getElementById("responseBox").textContent = JSON.stringify(data, null, 2);
+        
+        updateProgress(100);
+        displayResults(results);
+        
       } catch (error) {
-        document.getElementById("responseBox").textContent = `Error: ${error.message}`;
+        showError(error.message);
+      } finally {
+        setUploading(false);
       }
     }
-  </script>
 
+    function setUploading(isUploading) {
+      uploadBtn.disabled = isUploading;
+      uploadBtn.textContent = isUploading ? 'Processing...' : `Upload ${selectedFiles.length} File${selectedFiles.length > 1 ? 's' : ''}`;
+      progressContainer.classList.toggle('hidden', !isUploading);
+    }
+
+    function updateProgress(percent) {
+      progressBar.value = percent;
+      progressText.textContent = `${Math.round(percent)}%`;
+    }
+
+    function displayResults(results) {
+      emptyState.classList.add('hidden');
+      resultsContainer.classList.remove('hidden');
+      resultsBadge.classList.remove('hidden');
+      
+      resultsCount.textContent = results.length;
+      
+      // Function to format JSON data as HTML
+      const formatJsonToHtml = (jsonString) => {
+        try {
+          // Parse the JSON string if it's a string
+          const data = typeof jsonString === 'string' ? JSON.parse(jsonString) : jsonString;
+          
+          // Convert JSON to formatted HTML with syntax highlighting
+          const jsonToHtml = (obj) => {
+            if (obj === null) return '<span class="text-purple-400">null</span>';
+            if (typeof obj === 'string') return `<span class="text-green-400">"${obj}"</span>`;
+            if (typeof obj === 'number') return `<span class="text-yellow-400">${obj}</span>`;
+            if (typeof obj === 'boolean') return `<span class="text-blue-400">${obj}</span>`;
+            
+            if (Array.isArray(obj)) {
+              return `[<div class="ml-6">${obj.map(item => 
+                `<div>${jsonToHtml(item)},</div>`
+              ).join('')}</div>]`;
+            }
+            
+            if (typeof obj === 'object') {
+              const items = [];
+              for (const key in obj) {
+                items.push(
+                  `<div><span class="text-blue-300">"${key}"</span>: ${jsonToHtml(obj[key])},</div>`
+                );
+              }
+              return `{<div class="ml-6">${items.join('')}</div>}`;
+            }
+            
+            return String(obj);
+          };
+          
+          return jsonToHtml(data);
+        } catch (e) {
+          console.error('Error formatting JSON:', e);
+          return `<span class="text-red-400">Error displaying data: ${e.message}</span>`;
+        }
+      };
+      
+      resultsContainer.innerHTML = results.map(result => {
+        if (result.success) {
+          // Extract the JSON string from the result if it's in the format shown in the example
+          let jsonData = result;
+          if (result['0'] === '`' && result['1'] === '`' && result['2'] === '`') {
+            // Reconstruct the JSON string from the character-by-character format
+            const jsonString = Object.keys(result)
+              .filter(key => !isNaN(parseInt(key)))
+              .sort((a, b) => parseInt(a) - parseInt(b))
+              .map(key => result[key])
+              .join('')
+              .replace(/^```json\n|```$/g, ''); // Remove markdown code block markers
+            
+            try {
+              jsonData = JSON.parse(jsonString);
+            } catch (e) {
+              console.error('Error parsing JSON:', e);
+              jsonData = { error: 'Failed to parse JSON data', raw: jsonString };
+            }
+          }
+          
+          return `
+            <div class="bg-slate-800/50 rounded-xl p-4 border border-slate-700 mb-4">
+              <div class="flex items-center gap-3 mb-3">
+                <div class="text-xl">${getFileIcon(result.file)}</div>
+                <div class="flex-1">
+                  <h4 class="font-medium">${result.file}</h4>
+                  <span class="badge badge-success badge-sm">✅ Classified</span>
+                </div>
+              </div>
+              <div class="bg-black/20 rounded-lg p-4 overflow-auto">
+                <div class="text-sm font-mono text-gray-300">
+                  ${formatJsonToHtml(jsonData)}
+                </div>
+              </div>
+            </div>
+          `;
+        } else {
+          return `
+            <div class="bg-slate-800/50 rounded-xl p-4 border border-red-500/30 mb-4">
+              <div class="flex items-center gap-3 mb-3">
+                <div class="text-xl">❌</div>
+                <div class="flex-1">
+                  <h4 class="font-medium">${result.file || 'Unknown file'}</h4>
+                  <span class="badge badge-error badge-sm">Error</span>
+                </div>
+              </div>
+              <div class="bg-red-900/20 rounded-lg p-3">
+                <p class="text-red-300 text-sm">${result.error || 'Unknown error occurred'}</p>
+              </div>
+            </div>
+          `;
+        }
+      }).join('');
+    }
+
+    function clearResults() {
+      emptyState.classList.remove('hidden');
+      resultsContainer.classList.add('hidden');
+      resultsBadge.classList.add('hidden');
+    }
+
+    function showError(message) {
+      alert(`Error: ${message}`);
+    }
+
+    function getFileIcon(type) {
+      if (type.includes('image')) return '🖼️';
+      if (type.includes('video')) return '🎥';
+      if (type.includes('audio')) return '🎵';
+      if (type.includes('pdf')) return '📄';
+      if (type.includes('text')) return '📝';
+      return '📁';
+    }
+
+    function formatFileSize(bytes) {
+      if (bytes === 0) return '0 Bytes';
+      const k = 1024;
+      const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+      const i = Math.floor(Math.log(bytes) / Math.log(k));
+      return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    }
+
+    // Initialize
+    updateUploadButton();
+  </script>
 </body>
 </html>

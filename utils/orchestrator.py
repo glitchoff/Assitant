@@ -1,14 +1,20 @@
 from fastapi import UploadFile, HTTPException
 from agents.checkIntent import checkIntent
 from utils.pdfutils import pdfParser
-# from utils.textutils import txt_to_markdown
-# from utils.csvutils import csv_to_markdown
+from agents.invoiceAgent import invoiceAgent
+from agents.rfqAgent import rfqAgent
+from agents.complaintAgent import complaintAgent
+from agents.regulationAgent import regulationAgent
+from agents.fraudRiskAgent import fraudRiskAgent
+
 
 async def orchestrator(file: UploadFile):
     #1. check file type and process it   
     result = await processfile(file)
     intent = await checkIntent(result)
-    return intent 
+    return await IntentManager(intent, result)
+    
+
 
 async def getExt(file: UploadFile):
     ext = file.filename.upper().split(".")[-1]
@@ -26,6 +32,16 @@ async def processfile(file: UploadFile):
     else:
         raise HTTPException(status_code=400, detail=f"Unsupported file type: {file_type}. Currently supported types: PDF")
 
-
-
-
+def IntentManager(intent, result):
+    if intent == "Invoice":
+        return invoiceAgent(result)
+    elif intent == "RFQ":
+        return rfqAgent(result)
+    elif intent == "Complaint":
+        return complaintAgent(result)
+    elif intent == "Regulation":
+        return regulationAgent(result)
+    elif intent == "Fraud_Risk":
+        return fraudRiskAgent(result)
+    else:
+        raise HTTPException(status_code=400, detail="Unknown intent")
