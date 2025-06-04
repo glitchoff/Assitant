@@ -22,3 +22,4 @@ async def processfile(file: UploadFile):
 
 def processpdf(file: UploadFile):
     pdfData = pdfParser(file)
+    return pdfData
