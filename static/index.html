@@ -25,7 +25,7 @@
 
     <div class="mt-4">
       <h3 class="text-md font-medium">Response:</h3>
-      <pre id="responseBox" class="text-sm bg-base-200 p-3 rounded-lg max-h-64 overflow-auto"></pre>
+      <pre id="responseBox" class="text-sm bg-base-200 p-3 rounded-lg max-h-64 overflow-auto whitespace-pre-wrap break-words"></pre>
     </div>
   </div>
 
@@ -42,16 +42,20 @@
       formData.append("file", file);
 
       try {
-        const res = await fetch("http://localhost:8000/classify", {
+        const res = await fetch("/classify", {  
           method: "POST",
           body: formData,
         });
 
+        if (!res.ok) {
+          const error = await res.json();
+          throw new Error(error.detail || "Unknown error occurred");
+        }
+
         const data = await res.json();
         document.getElementById("responseBox").textContent = JSON.stringify(data, null, 2);
-      } catch (err) {
-        console.error(err);
-        alert("Upload failed. Check console.");
+      } catch (error) {
+        document.getElementById("responseBox").textContent = `Error: ${error.message}`;
       }
     }
   </script>
