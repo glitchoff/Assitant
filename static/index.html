@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Upload File to FastAPI</title>
+
+  <!-- ✅ Tailwind CSS + DaisyUI CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      plugins: [window.daisyui],
+    };
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/daisyui@3.8.2/dist/full.js"></script>
+</head>
+<body class="bg-base-200 min-h-screen flex items-center justify-center">
+
+  <div class="card w-full max-w-md bg-base-100 shadow-xl p-6">
+    <h2 class="text-2xl font-bold mb-4 text-center">Upload a File</h2>
+
+    <input type="file" id="fileInput" class="file-input file-input-bordered w-full mb-4" />
+
+    <button class="btn btn-primary w-full" onclick="uploadFile()">Upload & Process</button>
+
+    <div class="mt-4">
+      <h3 class="text-md font-medium">Response:</h3>
+      <pre id="responseBox" class="text-sm bg-base-200 p-3 rounded-lg max-h-64 overflow-auto"></pre>
+    </div>
+  </div>
+
+  <script>
+    async function uploadFile() {
+      const fileInput = document.getElementById("fileInput");
+      const file = fileInput.files[0];
+      if (!file) {
+        alert("Please choose a file first.");
+        return;
+      }
+
+      const formData = new FormData();
+      formData.append("file", file);
+
+      try {
+        const res = await fetch("http://localhost:8000/classify", {
+          method: "POST",
+          body: formData,
+        });
+
+        const data = await res.json();
+        document.getElementById("responseBox").textContent = JSON.stringify(data, null, 2);
+      } catch (err) {
+        console.error(err);
+        alert("Upload failed. Check console.");
+      }
+    }
+  </script>
+
+</body>
+</html>
