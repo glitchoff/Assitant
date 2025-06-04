@@ -1,5 +1,5 @@
 from fastapi import UploadFile, HTTPException
-from utils.pdfutils import pdf_to_markdown_advanced
+from utils.pdfutils import pdfParser
 # from utils.textutils import txt_to_markdown
 # from utils.csvutils import csv_to_markdown
 
@@ -20,6 +20,8 @@ async def processfile(file: UploadFile):
         raise HTTPException(status_code=400, detail=f"Unsupported file type: {file_type}. Currently supported types: PDF")
 
 
+
 def processpdf(file: UploadFile):
     pdfData = pdfParser(file)
     return pdfData
+
