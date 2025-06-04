@@ -1,10 +1,13 @@
 # Inside classifyfiles.py
+from fastapi import UploadFile
+
 async def handle_file(file: UploadFile):
     if file.filename.upper().endswith(".PDF"):
-        return {"file_name": file.filename}
+        return "pdf"
     if file.filename.upper().endswith(".TXT"):
-        return {"file_name": file.filename}
+        return "txt"
     if file.filename.upper().endswith(".CSV"):
-        return {"file_name": file.filename}
+        return "csv"
     else:
-        return {"file_name": "Invalid file type"}
+        return "Invalid file type"
+
