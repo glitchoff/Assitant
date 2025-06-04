@@ -6,15 +6,51 @@ from agents.rfqAgent import rfqAgent
 from agents.complaintAgent import complaintAgent
 from agents.regulationAgent import regulationAgent
 from agents.fraudRiskAgent import fraudRiskAgent
+from memory.database import DatabaseManager
 
+db_manager = DatabaseManager()
 
 async def orchestrator(file: UploadFile):
-    #1. check file type and process it   
-    result = await processfile(file)
-    intent = await checkIntent(result)
-    return await IntentManager(intent, result)
-    
-
+    #1. check file type and process file   
+    try:
+        print(f"Processing file: {file.filename}")
+        result = await processfile(file)
+        print(f"File processed, checking intent...")
+        intent = await checkIntent(result)
+        print(f"Intent: {intent}, running IntentManager...")
+        data = await IntentManager(intent, result)
+        print(f"Got data from IntentManager")
+        
+        # Prepare data for logging
+        log_data = {
+            "intent": intent,
+            "filename": file.filename,
+            "result": data,
+            "status": "processed"
+        }
+        
+        # Log agent data to database
+        print("Logging to database...")
+        db_manager.log_agent_data(
+            agent_type=intent,
+            file_name=file.filename,
+            intent=intent,
+            data=data,
+            status="processed"
+        )
+        print("Successfully logged to database")
+        
+        return data
+    except Exception as e:
+        # Log error to database
+        db_manager.log_agent_data(
+            agent_type="Unknown",
+            file_name=file.filename,
+            intent="Unknown",
+            data={"error": str(e)},
+            status="error"
+        )
+        raise
 
 async def getExt(file: UploadFile):
     ext = file.filename.upper().split(".")[-1]
