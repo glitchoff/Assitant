@@ -4,10 +4,16 @@ from fastapi.exceptions import HTTPException
 
 async def pdfParser(file: UploadFile):
     try:
-        content = await file.read() 
+        # Reset file pointer to beginning
+        await file.seek(0)
+        
+        # Read the file content once
+        content = await file.read()
         if not content:
             raise HTTPException(status_code=400, detail="The file appears to be empty")
+            
         try:
+            # Create a bytes stream for PyMuPDF
             doc = fitz.open(stream=content, filetype="pdf")
             if doc.page_count == 0:
                 raise HTTPException(status_code=400, detail="The PDF file has no pages")

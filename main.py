@@ -1,26 +1,29 @@
-from fastapi import FastAPI, UploadFile, File, HTTPException, Request, Form
-from fastapi.responses import FileResponse, JSONResponse, HTMLResponse
-from fastapi.templating import Jinja2Templates
+from fastapi import FastAPI, UploadFile, File, HTTPException
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from utils.orchestrator import orchestrator
-from memory.database import DatabaseManager
+import os
 import logging
-from typing import List, Dict, Any
-import json
-from api.memoryRoute import api_router
+from api.memoryRoute import api_router, init_db_connection
 import uvicorn
+
+# Ensure static directory exists
+os.makedirs("static", exist_ok=True)
 
 app = FastAPI()
 
-# Initialize database manager
-print("Initializing database...")
-db_manager = DatabaseManager()
-print("Database initialized successfully")
-
-templates = Jinja2Templates(directory="templates")
-
 # Configure logging
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
 logger = logging.getLogger(__name__)
+
+# Initialize database connection for CRM
+init_db_connection('crm.db')
+
+# Mount static files
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
 @app.post("/classify")
 async def classify_file(file: UploadFile = File(...)):
@@ -28,7 +31,6 @@ async def classify_file(file: UploadFile = File(...)):
     
     if not file.filename:
         raise HTTPException(status_code=400, detail="No file provided")
-    
     try:
         # Validate file size
         if file.size > 10 * 1024 * 1024:  # 10MB limit

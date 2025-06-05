@@ -1,0 +1,1057 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document Management CRM</title>
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@5" rel="stylesheet" type="text/css" />
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <style>
+        :root {
+            --primary: #4f46e5;
+            --primary-hover: #4338ca;
+            --error: #dc2626;
+            --warning: #d97706;
+            --success: #059669;
+        }
+        
+        .fade-enter-active, .fade-leave-active {
+            transition: opacity 0.3s, transform 0.3s;
+        }
+        .fade-enter, .fade-leave-to {
+            opacity: 0;
+            transform: translateY(10px);
+        }
+        
+        .document-card {
+            transition: all 0.2s ease-in-out;
+            border-left: 4px solid transparent;
+        }
+        
+        .document-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        }
+        
+        .document-card[data-status='processed'] {
+            border-left-color: var(--success);
+        }
+        
+        .document-card[data-status='processing'] {
+            border-left-color: var(--warning);
+        }
+        
+        .document-card[data-status='error'] {
+            border-left-color: var(--error);
+        }
+        
+        .loading-shimmer {
+            background: linear-gradient(90deg, #f3f4f6 0%, #e5e7eb 50%, #f3f4f6 100%);
+            background-size: 200% 100%;
+            animation: shimmer 1.5s infinite;
+        }
+        
+        @keyframes shimmer {
+            0% { background-position: -200% 0; }
+            100% { background-position: 200% 0; }
+        }
+        
+        @media (max-width: 1024px) {
+            .container {
+                padding-left: 1rem;
+                padding-right: 1rem;
+            }
+            
+            .filters-container {
+                flex-direction: column;
+                gap: 0.5rem;
+            }
+            
+            .filters-container .join {
+                width: 100%;
+            }
+        }
+        
+        .badge {
+            font-size: 0.75rem;
+            padding: 0.25rem 0.5rem;
+            border-radius: 0.25rem;
+            font-weight: 500;
+        }
+        
+        .badge-uploaded { background-color: #dbeafe; color: #1e40af; }
+        .badge-processing { background-color: #fef3c7; color: #92400e; }
+        .badge-processed { background-color: #dcfce7; color: #166534; }
+        .badge-error { background-color: #fee2e2; color: #991b1b; }
+        
+        [data-theme='dark'] .document-card {
+            background-color: #1f2937;
+            border-color: #374151;
+        }
+        
+        [data-theme='dark'] .loading-shimmer {
+            background: linear-gradient(90deg, #1f2937 0%, #374151 50%, #1f2937 100%);
+        }
+    </style>
+</head>
+<body class="bg-base-200 min-h-screen">
+    <!-- Navigation -->
+    <div class="navbar bg-base-100 shadow-lg sticky top-0 z-10">
+        <div class="flex-1">
+            <a href="/crm" class="btn btn-ghost normal-case text-xl font-bold text-primary">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                DocuFlow CRM
+            </a>
+        </div>
+        <div class="flex-none gap-2">
+            <div class="tooltip tooltip-bottom" data-tip="Last updated: Just now">
+                <button class="btn btn-ghost btn-sm" id="last-updated">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <span class="text-sm">Just now</span>
+                </button>
+            </div>
+            <div class="dropdown dropdown-end">
+                <button class="btn btn-ghost btn-square" id="theme-toggle" aria-label="Toggle theme">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="w-6 h-6" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+                    </svg>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div class="container mx-auto px-4 py-6">
+        <!-- Stats Cards -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8" id="stats-container">
+            <!-- Stats will be loaded here -->
+            <div class="skeleton h-32 w-full"></div>
+            <div class="skeleton h-32 w-full"></div>
+            <div class="skeleton h-32 w-full"></div>
+            <div class="skeleton h-32 w-full"></div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <!-- Documents List -->
+            <div class="lg:col-span-2">
+                <div class="card bg-base-100 shadow-xl">
+                    <div class="card-body">
+                        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
+                            <div>
+                                <h2 class="card-title text-2xl font-bold">Documents</h2>
+                                <p class="text-sm text-gray-500 dark:text-gray-400" id="document-count">Loading documents...</p>
+                            </div>
+                            <div class="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+                                <div class="join w-full sm:w-auto">
+                                    <select class="select select-bordered join-item w-full sm:w-auto" id="status-filter" aria-label="Filter by status">
+                                        <option value="">All Status</option>
+                                        <option value="uploaded">Uploaded</option>
+                                        <option value="processing">Processing</option>
+                                        <option value="processed">Processed</option>
+                                        <option value="error">Error</option>
+                                    </select>
+                                    <select class="select select-bordered join-item w-full sm:w-auto" id="intent-filter" aria-label="Filter by intent">
+                                        <option value="">All Intents</option>
+                                        <option value="Invoice">Invoice</option>
+                                        <option value="RFQ">RFQ</option>
+                                        <option value="Complaint">Complaint</option>
+                                        <option value="Regulation">Regulation</option>
+                                        <option value="Fraud_Risk">Fraud Risk</option>
+                                    </select>
+                                    <button class="btn btn-primary join-item" id="refresh-btn" aria-label="Refresh">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                            <path fill-rule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clip-rule="evenodd" />
+                                        </svg>
+                                    </button>
+                                </div>
+                                <div class="flex gap-2">
+                                    <button class="btn btn-outline btn-sm" id="export-btn" disabled>
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                                        </svg>
+                                        Export
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="overflow-x-auto rounded-lg border border-base-200 dark:border-gray-700">
+                            <table class="table w-full">
+                                <thead class="bg-base-200 dark:bg-gray-800">
+                                    <tr>
+                                        <th class="font-semibold">Filename</th>
+                                        <th class="font-semibold">Type</th>
+                                        <th class="font-semibold">Status</th>
+                                        <th class="font-semibold">Date</th>
+                                        <th class="font-semibold text-right">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="documents-list">
+                                    <!-- Loading state -->
+                                    <tr>
+                                        <td colspan="5" class="p-0">
+                                            <div class="flex flex-col gap-2 p-4">
+                                                <div class="skeleton h-12 w-full"></div>
+                                                <div class="skeleton h-12 w-full"></div>
+                                                <div class="skeleton h-12 w-full"></div>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        
+                        <div class="flex flex-col sm:flex-row justify-between items-center gap-4 mt-6">
+                            <div class="text-sm text-gray-500 dark:text-gray-400" id="pagination-info">
+                                Showing 0 to 0 of 0 entries
+                            </div>
+                            <div class="join">
+                                <button class="join-item btn btn-sm sm:btn-md" id="prev-page" aria-label="Previous page" disabled>
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+                                    </svg>
+                                </button>
+                                <button class="join-item btn btn-sm sm:btn-md" id="current-page" disabled>1</button>
+                                <button class="join-item btn btn-sm sm:btn-md" id="next-page" aria-label="Next page" disabled>
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                                    </svg>
+                                </button>
+                            </div>
+                            <div class="flex items-center gap-2 text-sm">
+                                <span>Items per page:</span>
+                                <select class="select select-bordered select-sm w-20" id="page-size">
+                                    <option value="5">5</option>
+                                    <option value="10" selected>10</option>
+                                    <option value="25">25</option>
+                                    <option value="50">50</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Document Details -->
+            <div class="lg:col-span-1">
+                <div class="card bg-base-100 shadow-xl h-full">
+                    <div class="card-body">
+                        <h2 class="card-title">Document Details</h2>
+                        <div id="document-details" class="h-full">
+                            <div class="flex items-center justify-center h-full">
+                                <div class="text-center">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 mx-auto text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                    </svg>
+                                    <p class="mt-2 text-gray-500">Select a document to view details</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Charts Row -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
+            <div class="card bg-base-100 shadow-xl">
+                <div class="card-body">
+                    <h2 class="card-title">Documents by Status</h2>
+                    <div class="h-64">
+                        <canvas id="status-chart"></canvas>
+                    </div>
+                </div>
+            </div>
+            <div class="card bg-base-100 shadow-xl">
+                <div class="card-body">
+                    <h2 class="card-title">Documents by Intent</h2>
+                    <div class="h-64">
+                        <canvas id="intent-chart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Document Detail Modal -->
+    <div id="document-modal" class="modal">
+        <div class="modal-box max-w-5xl">
+            <h3 class="font-bold text-lg mb-4">Document Details</h3>
+            <div id="modal-content">
+                <!-- Content will be loaded here -->
+            </div>
+            <div class="modal-action">
+                <button class="btn" onclick="document.getElementById('document-modal').classList.remove('modal-open')">Close</button>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // State
+        let documents = [];
+        let currentPage = 1;
+        let pageSize = 10;
+        let currentStatusFilter = '';
+        let currentIntentFilter = '';
+        let totalDocuments = 0;
+        let totalPages = 1;
+        
+        // DOM Elements
+        let documentsList, documentDetails, statsContainer, statusFilter, intentFilter, refreshBtn, prevPageBtn, nextPageBtn, currentPageSpan;
+        let statusChart = null, intentChart = null;
+        
+        // Initialize DOM Elements
+        function initDOM() {
+            // Main elements
+            documentsList = document.getElementById('documents-list');
+            documentDetails = document.getElementById('document-details');
+            statsContainer = document.getElementById('stats-container');
+            
+            // Form elements
+            statusFilter = document.getElementById('status-filter');
+            intentFilter = document.getElementById('intent-filter');
+            refreshBtn = document.getElementById('refresh-btn');
+            prevPageBtn = document.getElementById('prev-page');
+            nextPageBtn = document.getElementById('next-page');
+            currentPageSpan = document.getElementById('current-page');
+            pageSizeSelect = document.getElementById('page-size');
+            exportBtn = document.getElementById('export-btn');
+            lastUpdatedBtn = document.getElementById('last-updated');
+            
+            // Set up event listeners for filters and pagination
+            setupEventListeners();
+            
+            // Initialize tooltips if available
+            initTooltips();
+        }
+        
+        // Set up event listeners for interactive elements
+        function setupEventListeners() {
+            // Status filter
+            if (statusFilter) {
+                statusFilter.addEventListener('change', handleFilterChange);
+            }
+            
+            // Intent filter
+            if (intentFilter) {
+                intentFilter.addEventListener('change', handleFilterChange);
+            }
+            
+            // Refresh button
+            if (refreshBtn) {
+                refreshBtn.addEventListener('click', handleRefresh);
+            }
+            
+            // Pagination
+            if (prevPageBtn) {
+                prevPageBtn.addEventListener('click', goToPrevPage);
+            }
+            
+            if (nextPageBtn) {
+                nextPageBtn.addEventListener('click', goToNextPage);
+            }
+            
+            // Page size selector
+            if (pageSizeSelect) {
+                pageSizeSelect.addEventListener('change', handlePageSizeChange);
+            }
+            
+            // Export button
+            if (exportBtn) {
+                exportBtn.addEventListener('click', exportDocuments);
+            }
+            
+            // Last updated button
+            if (lastUpdatedBtn) {
+                lastUpdatedBtn.addEventListener('click', handleRefresh);
+            }
+            
+            // Keyboard shortcuts
+            document.addEventListener('keydown', handleKeyboardShortcuts);
+        }
+        
+        // Initialize tooltips
+        function initTooltips() {
+            if (window.tippy) {
+                tippy('[data-tip]', {
+                    content: (reference) => reference.getAttribute('data-tip'),
+                    theme: 'light',
+                    placement: 'top',
+                    animation: 'scale',
+                    duration: 200,
+                    arrow: true
+                });
+            }
+        }
+        
+        // Theme Toggle
+        document.getElementById('theme-toggle').addEventListener('click', () => {
+            const html = document.documentElement;
+            const currentTheme = html.getAttribute('data-theme');
+            const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+            html.setAttribute('data-theme', newTheme);
+            localStorage.setItem('theme', newTheme);
+        });
+        
+        // Load saved theme
+        if (localStorage.getItem('theme') === 'dark') {
+            document.documentElement.setAttribute('data-theme', 'dark');
+        }
+        
+        // Event Listeners
+        prevPageBtn.addEventListener('click', () => {
+            if (currentPage > 1) {
+                currentPage--;
+                loadDocuments();
+            }
+        });
+        
+        nextPageBtn.addEventListener('click', () => {
+            currentPage++;
+            loadDocuments();
+        });
+        
+        statusFilter.addEventListener('change', (e) => {
+            currentStatusFilter = e.target.value;
+            currentPage = 1;
+            loadDocuments();
+        });
+        
+        intentFilter.addEventListener('change', (e) => {
+            currentIntentFilter = e.target.value;
+            currentPage = 1;
+            loadDocuments();
+        });
+        
+        refreshBtn.addEventListener('click', () => {
+            loadDocuments();
+            loadStats();
+        });
+        
+        // Helper function to escape HTML to prevent XSS
+        function escapeHtml(unsafe) {
+            if (!unsafe) return '';
+            return unsafe
+                .toString()
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+
+        // Event Handlers
+        function handleFilterChange(e) {
+            if (e.target.id === 'status-filter') {
+                currentStatusFilter = e.target.value || '';
+            } else if (e.target.id === 'intent-filter') {
+                currentIntentFilter = e.target.value || '';
+            }
+            currentPage = 1;
+            loadDocuments();
+        }
+        
+        function handleRefresh() {
+            loadDocuments();
+            loadStats();
+            updateLastUpdated();
+        }
+        
+        function goToPrevPage() {
+            if (currentPage > 1) {
+                currentPage--;
+                loadDocuments();
+            }
+        }
+        
+        function goToNextPage() {
+            currentPage++;
+            loadDocuments();
+        }
+        
+        function handlePageSizeChange(e) {
+            pageSize = parseInt(e.target.value);
+            currentPage = 1;
+            loadDocuments();
+        }
+        
+        function handleKeyboardShortcuts(e) {
+            // Cmd/Ctrl + R to refresh
+            if ((e.ctrlKey || e.metaKey) && e.key === 'r') {
+                e.preventDefault();
+                handleRefresh();
+            }
+            
+            // Left/right arrow keys for pagination
+            if (e.key === 'ArrowLeft' && currentPage > 1) {
+                e.preventDefault();
+                goToPrevPage();
+            } else if (e.key === 'ArrowRight' && currentPage < totalPages) {
+                e.preventDefault();
+                goToNextPage();
+            }
+        }
+        
+        // Update pagination controls
+        function updatePagination(totalCount, pages) {
+            totalDocuments = totalCount;
+            totalPages = pages;
+            
+            if (currentPageSpan) currentPageSpan.textContent = currentPage;
+            
+            // Update button states
+            if (prevPageBtn) {
+                prevPageBtn.disabled = currentPage <= 1;
+                prevPageBtn.classList.toggle('btn-disabled', currentPage <= 1);
+            }
+            
+            if (nextPageBtn) {
+                nextPageBtn.disabled = currentPage >= totalPages;
+                nextPageBtn.classList.toggle('btn-disabled', currentPage >= totalPages);
+            }
+            
+            // Update export button
+            if (exportBtn) {
+                exportBtn.disabled = totalCount === 0;
+                exportBtn.classList.toggle('btn-disabled', totalCount === 0);
+            }
+            
+            // Update document count
+            const documentCountEl = document.getElementById('document-count');
+            if (documentCountEl) {
+                documentCountEl.textContent = totalCount === 0 ? 'No documents found' : 
+                    `${totalCount} document${totalCount !== 1 ? 's' : ''} found`;
+            }
+            
+            // Update pagination info
+            const paginationInfo = document.getElementById('pagination-info');
+            if (paginationInfo) {
+                if (totalCount > 0) {
+                    const startItem = (currentPage - 1) * pageSize + 1;
+                    const endItem = Math.min(currentPage * pageSize, totalCount);
+                    paginationInfo.textContent = `Showing ${startItem} to ${endItem} of ${totalCount} entries`;
+                } else {
+                    paginationInfo.textContent = 'No entries to display';
+                }
+            }
+        }
+
+        // Initialize the application
+        document.addEventListener('DOMContentLoaded', () => {
+            try {
+                // Initialize DOM elements
+                initDOM();
+                
+                // Theme toggle
+                const themeToggle = document.getElementById('theme-toggle');
+                if (themeToggle) {
+                    themeToggle.addEventListener('click', () => {
+                        const html = document.documentElement;
+                        const currentTheme = html.getAttribute('data-theme');
+                        const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+                        html.setAttribute('data-theme', newTheme);
+                        localStorage.setItem('theme', newTheme);
+                    });
+                }
+                
+                // Apply saved theme
+                if (localStorage.getItem('theme') === 'dark') {
+                    document.documentElement.setAttribute('data-theme', 'dark');
+                }
+                
+                // Event delegation for document clicks
+                document.addEventListener('click', (e) => {
+                    // Handle document row clicks
+                    const row = e.target.closest('tr[data-document-id]');
+                    if (row) {
+                        const documentId = row.getAttribute('data-document-id');
+                        loadDocumentDetails(documentId);
+                    }
+                    
+                    // Handle view button clicks
+                    const viewBtn = e.target.closest('.view-document');
+                    if (viewBtn) {
+                        e.stopPropagation();
+                        const documentId = viewBtn.getAttribute('data-id');
+                        viewDocument(documentId);
+                    }
+                    
+                    // Handle download button clicks
+                    const downloadBtn = e.target.closest('.download-document');
+                    if (downloadBtn) {
+                        e.stopPropagation();
+                        // Download is handled by the link
+                    }
+                });
+                
+                // Form submission
+                const searchForm = document.getElementById('search-form');
+                if (searchForm) {
+                    searchForm.addEventListener('submit', (e) => {
+                        e.preventDefault();
+                        currentPage = 1;
+                        loadDocuments();
+                    });
+                }
+                
+                // Initial data load
+                const loadInitialData = async () => {
+                    try {
+                        await Promise.all([
+                            loadDocuments(),
+                            loadStats()
+                        ]);
+                        updateLastUpdated();
+                    } catch (error) {
+                        console.error('Failed to load initial data:', error);
+                        showError('Failed to load initial data. Please refresh the page.');
+                    }
+                };
+                
+                loadInitialData();
+                
+            } catch (error) {
+                console.error('Failed to initialize application:', error);
+                showError(`Failed to initialize application: ${error.message || 'Unknown error'}`);
+            }
+        });
+        
+        // Update last updated timestamp
+        function updateLastUpdated() {
+            const now = new Date();
+            const timeString = now.toLocaleTimeString();
+            const dateString = now.toLocaleDateString();
+            const lastUpdatedBtn = document.getElementById('last-updated');
+            if (lastUpdatedBtn) {
+                lastUpdatedBtn.querySelector('span').textContent = `${timeString}`;
+                lastUpdatedBtn.setAttribute('data-tip', `Last updated: ${dateString} ${timeString}`);
+            }
+        }
+        
+        // Show error message
+        function showError(message) {
+            const errorDiv = document.createElement('div');
+            errorDiv.className = 'alert alert-error';
+            errorDiv.innerHTML = `
+                <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span>${escapeHtml(message)}</span>`;
+                
+            // Remove any existing error messages
+            const existingError = document.querySelector('.alert-error');
+            if (existingError) {
+                existingError.remove();
+            }
+            
+            document.body.insertBefore(errorDiv, document.body.firstChild);
+            
+            // Auto-remove after 5 seconds
+            setTimeout(() => {
+                errorDiv.remove();
+            }, 5000);
+        }
+        
+        // Export documents function
+        async function exportDocuments() {
+            try {
+                // Build query parameters
+                const params = new URLSearchParams({
+                    page: currentPage,
+                    page_size: pageSize,
+                    ...(currentStatusFilter && { status: currentStatusFilter }),
+                    ...(currentIntentFilter && { intent: currentIntentFilter }),
+                    export: 'true'
+                });
+                
+                // Create a temporary link to trigger download
+                const url = `/api/documents/export?${params.toString()}`;
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `documents_export_${new Date().toISOString().split('T')[0]}.csv`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                
+            } catch (error) {
+                console.error('Export failed:', error);
+                showError('Failed to export documents. Please try again.');
+            }
+        }
+        
+        // Load document details
+        async function loadDocumentDetails(documentId) {
+            if (!documentId || !documentDetails) return;
+            
+            try {
+                showLoading(documentDetails, 'Loading document details...');
+                
+                const response = await fetch(`/api/documents/${documentId}`);
+                
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({}));
+                    throw new Error(errorData.detail || `HTTP error! status: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                renderDocumentDetails(data);
+            } catch (error) {
+                console.error('Error loading document details:', error);
+                documentDetails.innerHTML = `
+                    <div class="alert alert-error">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <span>Error loading document details: ${error.message}</span>
+                    </div>`;
+            } finally {
+                hideLoading(documentDetails);
+            }
+        }
+        
+        async function loadStats() {
+            try {
+                showLoading(statsContainer, 'Loading statistics...');
+                const response = await fetch('/api/stats');
+                
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({}));
+                    throw new Error(errorData.detail || `HTTP error! status: ${response.status}`);
+                }
+                
+                const stats = await response.json();
+                renderStats(stats);
+                updateCharts(stats);
+            } catch (error) {
+                console.error('Error loading stats:', error);
+                // Show a non-intrusive error message for stats
+                const errorElement = document.createElement('div');
+                errorElement.className = 'alert alert-warning';
+                errorElement.innerHTML = `
+                    <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                    </svg>
+                    <span>Could not load statistics: ${error.message}</span>`;
+                statsContainer.appendChild(errorElement);
+            } finally {
+                hideLoading(statsContainer);
+            }
+        }
+        
+        // Render Functions
+        function renderDocuments() {
+            console.log('Rendering documents:', documents);
+            
+            if (!documentsList) {
+                console.error('documentsList element not found');
+                return;
+            }
+            
+            if (!documents || !Array.isArray(documents)) {
+                console.error('Invalid documents data:', documents);
+                documentsList.innerHTML = '<tr><td colspan="5" class="text-center py-4 text-error">Invalid documents data</td></tr>';
+                return;
+            }
+            
+            if (documents.length === 0) {
+                console.log('No documents to display');
+                documentsList.innerHTML = '<tr><td colspan="5" class="text-center py-4">No documents found</td></tr>';
+                return;
+            }
+            
+            try {
+                const rows = documents.map(doc => {
+                    try {
+                        console.log('Processing document:', doc);
+                        const date = doc.upload_time ? new Date(doc.upload_time) : new Date();
+                        const formattedDate = date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
+                        const statusBadge = getStatusBadge(doc.status || 'unknown');
+                        
+                        return `
+                            <tr class="hover:bg-base-200 cursor-pointer document-row" data-id="${doc.id || ''}">
+                                <td class="font-medium">${doc.filename || 'Unnamed Document'}</td>
+                                <td>${doc.mime_type || 'N/A'}</td>
+                                <td>${statusBadge}</td>
+                                <td>${formattedDate}</td>
+                                <td>
+                                    <div class="flex space-x-2">
+                                        <button class="btn btn-xs btn-ghost" onclick="event.stopPropagation(); viewDocument(${doc.id || 'null'})">
+                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                            </svg>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>`;
+                    } catch (error) {
+                        console.error('Error rendering document:', doc, error);
+                        return null;
+                    }
+                }).filter(row => row !== null);
+                
+                documentsList.innerHTML = rows.join('');
+                
+                // Add click event to document rows
+                document.querySelectorAll('.document-row').forEach(row => {
+                    row.addEventListener('click', () => {
+                        const documentId = row.getAttribute('data-id');
+                        if (documentId) {
+                            loadDocumentDetails(documentId);
+                        }
+                    });
+                });
+                
+            } catch (error) {
+                console.error('Error rendering documents:', error);
+                documentsList.innerHTML = `
+                    <tr>
+                        <td colspan="5" class="text-center py-4 text-error">
+                            Error rendering documents: ${error.message}
+                        </td>
+                    </tr>`;
+            }
+        }
+        
+        function renderDocumentDetails(data) {
+            const doc = data.document;
+            const date = new Date(doc.upload_time);
+            const formattedDate = date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
+            const statusBadge = getStatusBadge(doc.status);
+            
+            let intentsHtml = '<div class="space-y-2">';
+            if (data.intents && data.intents.length > 0) {
+                data.intents.forEach(intent => {
+                    const confidencePercent = Math.round((intent.confidence || 0) * 100);
+                    intentsHtml += `
+                        <div class="flex justify-between items-center">
+                            <span class="font-medium">${intent.intent_type || 'Unknown'}</span>
+                            <div class="w-32 bg-gray-200 rounded-full h-2.5">
+                                <div class="bg-blue-600 h-2.5 rounded-full" style="width: ${confidencePercent}%"></div>
+                            </div>
+                            <span class="text-sm text-gray-500 w-12 text-right">${confidencePercent}%</span>
+                        </div>
+                    `;
+                });
+            } else {
+                intentsHtml += '<p>No intent data available</p>';
+            }
+            intentsHtml += '</div>';
+            
+            let responsesHtml = '<div class="space-y-4">';
+            if (data.responses && data.responses.length > 0) {
+                data.responses.forEach((response, index) => {
+                    responsesHtml += `
+                        <div class="collapse collapse-arrow border border-base-300 rounded-box">
+                            <input type="checkbox" ${index === 0 ? 'checked' : ''} />
+                            <div class="collapse-title font-medium">
+                                ${response.agent_type || 'Response'} (${new Date(response.processed_at).toLocaleString()})
+                            </div>
+                            <div class="collapse-content">
+                                <pre class="bg-base-200 p-4 rounded-lg overflow-x-auto text-sm">${JSON.stringify(response.response_data, null, 2)}</pre>
+                            </div>
+                        </div>
+                    `;
+                });
+            } else {
+                responsesHtml += '<p>No agent responses available</p>';
+            }
+            responsesHtml += '</div>';
+            
+            documentDetails.innerHTML = `
+                <div class="space-y-6">
+                    <div>
+                        <h3 class="text-lg font-bold mb-2">${doc.filename}</h3>
+                        <div class="text-sm text-gray-500">${formattedDate}</div>
+                        <div class="mt-2">${statusBadge}</div>
+                    </div>
+                    
+                    <div class="divider"></div>
+                    
+                    <div>
+                        <h4 class="font-bold mb-2">Document Intents</h4>
+                        ${intentsHtml}
+                    </div>
+                    
+                    <div class="divider"></div>
+                    
+                    <div>
+                        <h4 class="font-bold mb-2">Agent Responses</h4>
+                        ${responsesHtml}
+                    </div>
+                    
+                    <div class="divider"></div>
+                    
+                    <div>
+                        <h4 class="font-bold mb-2">Metadata</h4>
+                        <div class="bg-base-200 p-4 rounded-lg">
+                            <pre class="text-xs overflow-x-auto">${JSON.stringify(doc.metadata || {}, null, 2)}</pre>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+        
+        function renderStats(stats) {
+            statsContainer.innerHTML = `
+                <div class="stats shadow">
+                    <div class="stat">
+                        <div class="stat-figure text-primary">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="inline-block w-8 h-8 stroke-current">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                            </svg>
+                        </div>
+                        <div class="stat-title">Total Documents</div>
+                        <div class="stat-value text-primary">${stats.total_documents}</div>
+                        <div class="stat-desc">All processed documents</div>
+                    </div>
+                    
+                    <div class="stat">
+                        <div class="stat-figure text-secondary">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="inline-block w-8 h-8 stroke-current">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                            </svg>
+                        </div>
+                        <div class="stat-title">Processed</div>
+                        <div class="stat-value text-secondary">${stats.by_status.processed || 0}</div>
+                        <div class="stat-desc">Successfully processed</div>
+                    </div>
+                    
+                    <div class="stat">
+                        <div class="stat-figure text-accent">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="inline-block w-8 h-8 stroke-current">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                            </svg>
+                        </div>
+                        <div class="stat-title">In Progress</div>
+                        <div class="stat-value text-accent">${(stats.by_status.uploaded || 0) + (stats.by_status.processing || 0)}</div>
+                        <div class="stat-desc">Uploaded or processing</div>
+                    </div>
+                    
+                    <div class="stat">
+                        <div class="stat-figure text-error">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="inline-block w-8 h-8 stroke-current">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                            </svg>
+                        </div>
+                        <div class="stat-title">Errors</div>
+                        <div class="stat-value text-error">${stats.by_status.error || 0}</div>
+                        <div class="stat-desc">Processing errors</div>
+                    </div>
+                </div>
+            `;
+        }
+        
+        function updateCharts(stats) {
+            // Status Chart
+            const statusCtx = document.getElementById('status-chart').getContext('2d');
+            if (statusChart) statusChart.destroy();
+            
+            const statusLabels = Object.keys(stats.by_status);
+            const statusData = Object.values(stats.by_status);
+            
+            statusChart = new Chart(statusCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: statusLabels,
+                    datasets: [{
+                        data: statusData,
+                        backgroundColor: [
+                            '#36A2EB', '#4BC0C0', '#FF9F40', '#FF6384', '#9966FF'
+                        ],
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom'
+                        }
+                    }
+                }
+            });
+            
+            // Intent Chart
+            const intentCtx = document.getElementById('intent-chart').getContext('2d');
+            if (intentChart) intentChart.destroy();
+            
+            const intentLabels = Object.keys(stats.by_intent);
+            const intentData = Object.values(stats.by_intent);
+            
+            intentChart = new Chart(intentCtx, {
+                type: 'bar',
+                data: {
+                    labels: intentLabels,
+                    datasets: [{
+                        label: 'Documents by Intent',
+                        data: intentData,
+                        backgroundColor: [
+                            '#36A2EB', '#4BC0C0', '#FF9F40', '#FF6384', '#9966FF', '#FFCE56'
+                        ],
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                precision: 0
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    }
+                }
+            });
+        }
+        
+        // Helper Functions
+        function getStatusBadge(status) {
+            const statusClasses = {
+                'uploaded': 'badge badge-info',
+                'processing': 'badge badge-warning',
+                'processed': 'badge badge-success',
+                'error': 'badge badge-error'
+            };
+            
+            const statusText = status.charAt(0).toUpperCase() + status.slice(1);
+            return `<span class="${statusClasses[status] || 'badge'}">${statusText}</span>`;
+        }
+        
+        function viewDocument(id) {
+            const doc = documents.find(d => d.id === id);
+            if (!doc) return;
+            
+            const modal = document.getElementById('document-modal');
+            const modalContent = document.getElementById('modal-content');
+            
+            modalContent.innerHTML = `
+                <div class="space-y-4">
+                    <h4 class="text-lg font-bold">${doc.filename}</h4>
+                    <pre class="bg-base-200 p-4 rounded-lg overflow-x-auto max-h-96">
+${JSON.stringify(doc, null, 2)}
+                    </pre>
+                </div>
+            `;
+            
+            modal.classList.add('modal-open');
+        }
+        
+        // Make viewDocument available globally
+        window.viewDocument = viewDocument;
+    </script>
+</body>
+</html>
